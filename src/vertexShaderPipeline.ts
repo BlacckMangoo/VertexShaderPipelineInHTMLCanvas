@@ -1,5 +1,7 @@
-import { INITUI } from "./ui.js";
+import { INITUI as initialiseUi } from "./ui.js";
 import { getCameraState, getMeshTransformState } from "./stateManager.js";
+import { CameraBasis, multiplyMatrix3Vec3, perspectiveProjection, RotateAroundArbitraryAxisMatrix, ScaleVec3, TranslateVec3 } from "./math.js";
+import { Vec3} from "./math.js";
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d");
@@ -11,8 +13,6 @@ const frameBuffer = new Uint8ClampedArray(canvas.width * canvas.height * 4); // 
 const depthBuffer = new Float32Array(canvas.width * canvas.height); // for depth testing
 
 const aspectRatio = canvas.width / canvas.height;
-
-const cellSize = 10;
 
 interface Color {
     r: number;
@@ -27,19 +27,6 @@ interface Point {
     z: number;
 }
 
-interface Vec3 {
-    x: number;
-    y: number;
-    z: number;
-}
-
-interface Vec4 {
-    x: number;
-    y: number;
-    z: number;
-    w: number;
-}
-
 
 interface Camera {
     position: Vec3;
@@ -49,19 +36,6 @@ interface Camera {
     near : number;
     fov : number;
     ar : number 
-}
-
-interface Matrix4 {
-    r1: Vec4;
-    r2: Vec4;
-    r3: Vec4;
-    r4: Vec4;
-}
-
-interface Matrix3{
-    r1: Vec3;
-    r2: Vec3;
-    r3: Vec3;
 }
 
 interface Transform {
@@ -75,7 +49,7 @@ interface Transform {
 interface Mesh {
     name    : string;
     vertices: Point[];
-    edgesData : Array<[number, number]>;
+    triangleIndicesData: Array<[number, number, number]>;
 }
 
 interface Scene {
@@ -83,188 +57,6 @@ interface Scene {
     meshes : Mesh[];
 }
 
-function dotProduct(a: Vec3, b: Vec3): number {
-    return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-function normalise(v: Vec3): Vec3 {
-    const length = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-    return {
-        x: v.x / length,
-        y: v.y / length,
-        z: v.z / length,
-    };
-}
-
-function crossProduct(a: Vec3, b: Vec3): Vec3 {
-    return {
-        x: a.y * b.z - a.z * b.y,
-        y: a.z * b.x - a.x * b.z,
-        z: a.x * b.y - a.y * b.x,
-    };
-}
-
-function TransposeMatrix3(matrix: Matrix3): Matrix3 {
-    return {
-        r1: { x: matrix.r1.x, y: matrix.r2.x, z: matrix.r3.x },
-        r2: { x: matrix.r1.y, y: matrix.r2.y, z: matrix.r3.y },
-        r3: { x: matrix.r1.z, y: matrix.r2.z, z: matrix.r3.z },
-    };
-}
-
-
-function GranShmidtProcess( v : Vec3) : Matrix3 {
-   // we take a Vector , normalise and generate a new basis such that that vector is the first vector of the basis and the other two are orthogonal to it and each other
-    const r1 = normalise(v);
-    const arbitraryVector = { x: 0, y: 1, z: 0 };
-    // make sure the arbitrary vector is not parallel to r1
-    if (Math.abs(dotProduct(r1, arbitraryVector)) > 0.99) {
-        arbitraryVector.x = 1; // change to a different vector if they are parallel
-        arbitraryVector.y = 0;
-    }
-    // remove the component of the arbitrary vector that is in the direction of r1
-    const projectionLength = dotProduct(arbitraryVector, r1);
-    const projection = {
-        x: projectionLength * r1.x,
-        y: projectionLength * r1.y,
-        z: projectionLength * r1.z,
-    };
-    const r2 = {
-        x: arbitraryVector.x - projection.x,
-        y: arbitraryVector.y - projection.y,
-        z: arbitraryVector.z - projection.z,
-    };
-    const r2Normalised = normalise(r2);
-    const r3 = crossProduct(r1, r2Normalised);
-    const transposedResult = TransposeMatrix3({ r1, r2: r2Normalised, r3 });
-    
-    return transposedResult;
-
-    //FINAL MATRIX IN THE FORM 
-    //{ [ e1.x e2.x e3.x ]}
-    //{ [ e1.y e2.y e3.y ]}
-    //{ [ e1.z e2.z e3.z ]} 
-
-    // where e1 is the normalised input vector and e2 and e3 are the orthogonal vectors generated from the process
-
-}
-
-function LogMatrix4(matrix: Matrix4) {
-    console.log(
-        `${matrix.r1.x} ${matrix.r1.y} ${matrix.r1.z} ${matrix.r1.w}\n` +
-        `${matrix.r2.x} ${matrix.r2.y} ${matrix.r2.z} ${matrix.r2.w}\n` +
-        `${matrix.r3.x} ${matrix.r3.y} ${matrix.r3.z} ${matrix.r3.w}\n` +
-        `${matrix.r4.x} ${matrix.r4.y} ${matrix.r4.z} ${matrix.r4.w}\n`
-    );
-}
-
-function LogMatrix3(matrix: Matrix3) {
-    console.log(
-        `${matrix.r1.x} ${matrix.r1.y} ${matrix.r1.z}\n` +
-        `${matrix.r2.x} ${matrix.r2.y} ${matrix.r2.z}\n` +
-        `${matrix.r3.x} ${matrix.r3.y} ${matrix.r3.z}\n`
-    );
-}
-
-function LogVec3(vec: Vec3) {
-    console.log(`${vec.x} ${vec.y} ${vec.z}`);
-}
-
-function multiplyMatrix4(a: Matrix4, b: Matrix4): Matrix4 {
-    const r1 = {
-        x: a.r1.x * b.r1.x + a.r1.y * b.r2.x + a.r1.z * b.r3.x + a.r1.w * b.r4.x,
-        y: a.r1.x * b.r1.y + a.r1.y * b.r2.y + a.r1.z * b.r3.y + a.r1.w * b.r4.y,
-        z: a.r1.x * b.r1.z + a.r1.y * b.r2.z + a.r1.z * b.r3.z + a.r1.w * b.r4.z,
-        w: a.r1.x * b.r1.w + a.r1.y * b.r2.w + a.r1.z * b.r3.w + a.r1.w * b.r4.w
-    };
-    const r2 = {
-        x: a.r2.x * b.r1.x + a.r2.y * b.r2.x + a.r2.z * b.r3.x + a.r2.w * b.r4.x,
-        y: a.r2.x * b.r1.y + a.r2.y * b.r2.y + a.r2.z * b.r3.y + a.r2.w * b.r4.y,
-        z: a.r2.x * b.r1.z + a.r2.y * b.r2.z + a.r2.z * b.r3.z + a.r2.w * b.r4.z,
-        w: a.r2.x * b.r1.w + a.r2.y * b.r2.w + a.r2.z * b.r3.w + a.r2.w * b.r4.w
-    };
-    const r3 = {
-        x: a.r3.x * b.r1.x + a.r3.y * b.r2.x + a.r3.z * b.r3.x + a.r3.w * b.r4.x,
-        y: a.r3.x * b.r1.y + a.r3.y * b.r2.y + a.r3.z * b.r3.y + a.r3.w * b.r4.y,
-        z: a.r3.x * b.r1.z + a.r3.y * b.r2.z + a.r3.z * b.r3.z + a.r3.w * b.r4.z,
-        w: a.r3.x * b.r1.w + a.r3.y * b.r2.w + a.r3.z * b.r3.w + a.r3.w * b.r4.w
-    };
-    const r4 = {
-        x: a.r4.x * b.r1.x + a.r4.y * b.r2.x + a.r4.z * b.r3.x + a.r4.w * b.r4.x,
-        y: a.r4.x * b.r1.y + a.r4.y * b.r2.y + a.r4.z * b.r3.y + a.r4.w * b.r4.y,
-        z: a.r4.x * b.r1.z + a.r4.y * b.r2.z + a.r4.z * b.r3.z + a.r4.w * b.r4.z,
-        w: a.r4.x * b.r1.w + a.r4.y * b.r2.w + a.r4.z * b.r3.w + a.r4.w * b.r4.w
-    };
-    return { r1, r2, r3, r4 };
-}
-
-
-function multiplyMatrix3(a: Matrix3, b: Matrix3): Matrix3 {
-    const r1 = {
-        x: a.r1.x * b.r1.x + a.r1.y * b.r2.x + a.r1.z * b.r3.x,
-        y: a.r1.x * b.r1.y + a.r1.y * b.r2.y + a.r1.z * b.r3.y,
-        z: a.r1.x * b.r1.z + a.r1.y * b.r2.z + a.r1.z * b.r3.z
-    };
-    const r2 = {
-        x: a.r2.x * b.r1.x + a.r2.y * b.r2.x + a.r2.z * b.r3.x,
-        y: a.r2.x * b.r1.y + a.r2.y * b.r2.y + a.r2.z * b.r3.y,
-        z: a.r2.x * b.r1.z + a.r2.y * b.r2.z + a.r2.z * b.r3.z
-    };
-    const r3 = {
-        x: a.r3.x * b.r1.x + a.r3.y * b.r2.x + a.r3.z * b.r3.x,
-        y: a.r3.x * b.r1.y + a.r3.y * b.r2.y + a.r3.z * b.r3.y,
-        z: a.r3.x * b.r1.z + a.r3.y * b.r2.z + a.r3.z * b.r3.z
-    };
-    return { r1, r2, r3 };
-}
-
-function multiplyMatrix3Vec3(matrix: Matrix3, vec: Vec3): Vec3 {
-    return {
-        x: matrix.r1.x * vec.x + matrix.r1.y * vec.y + matrix.r1.z * vec.z,
-        y: matrix.r2.x * vec.x + matrix.r2.y * vec.y + matrix.r2.z * vec.z,
-        z: matrix.r3.x * vec.x + matrix.r3.y * vec.y + matrix.r3.z * vec.z
-    };
-}
-
-function InverseMatrix3(matrix: Matrix3): Matrix3 {
-    // we can find the inverse of a 3x3 matrix by finding the determinant and the adjugate matrix
-    const det = matrix.r1.x * (matrix.r2.y * matrix.r3.z - matrix.r2.z * matrix.r3.y) -        matrix.r1.y * (matrix.r2.x * matrix.r3.z - matrix.r2.z * matrix.r3.x) +
-        matrix.r1.z * (matrix.r2.x * matrix.r3.y - matrix.r2.y * matrix.r3.x);
-    const adjugate = {
-        r1: {
-            x: matrix.r2.y * matrix.r3.z - matrix.r2.z * matrix.r3.y,
-            y: matrix.r1.z * matrix.r3.y - matrix.r1.y * matrix.r3.z,
-            z: matrix.r1.y * matrix.r2.z - matrix.r1.z * matrix.r2.y
-        },
-        r2: {
-            x: matrix.r2.z * matrix.r3.x - matrix.r2.x * matrix.r3.z,
-            y: matrix.r1.x * matrix.r3.z - matrix.r1.z * matrix.r3.x,
-            z: matrix.r1.z * matrix.r2.x - matrix.r1.x * matrix.r2.z
-        },
-        r3: {
-            x: matrix.r2.x * matrix.r3.y - matrix.r2.y * matrix.r3.x,
-            y: matrix.r1.y * matrix.r3.x - matrix.r1.x * matrix.r3.y,
-            z: matrix.r1.x * matrix.r2.y - matrix.r1.y * matrix.r2.x
-        }
-    };
-    return {
-        r1: {
-            x: adjugate.r1.x / det,
-            y: adjugate.r1.y / det,
-            z: adjugate.r1.z / det
-        },
-        r2: {
-            x: adjugate.r2.x / det,
-            y: adjugate.r2.y / det,
-            z: adjugate.r2.z / det
-        },
-        r3: {
-            x: adjugate.r3.x / det,
-            y: adjugate.r3.y / det,
-            z: adjugate.r3.z / det
-        }
-    };
-}
 
 function convertPointFromNdcToScreenSpace(point: Point): Point {
     
@@ -276,96 +68,6 @@ function convertPointFromNdcToScreenSpace(point: Point): Point {
         z: point.z,
     };
 }
-
-const RotateAroundXMatrix = (angle: number) : Matrix3 => {
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-    return {
-        r1: { x: 1, y: 0, z: 0 },
-        r2: { x: 0, y: cos, z: -sin },
-        r3: { x: 0, y: sin, z: cos }
-    };
-};
-
-const RotateAroundYMatrix = (angle: number) : Matrix3 => {
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-    return {
-        r1: { x: cos, y: 0, z: sin },
-        r2: { x: 0, y: 1, z: 0 },
-        r3: { x: -sin, y: 0, z: cos }
-    };
-}
-
-const RotateAroundZMatrix = (angle: number) : Matrix3 => {
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-    return {
-        r1: { x: cos, y: -sin, z: 0 },
-        r2: { x: sin, y: cos, z: 0 },
-        r3: { x: 0, y: 0, z: 1 }
-    };
-}
-
-// instead of making a 4x4 matrix we will do translation step and change of basis step separately for conceptual understading 
-
-
-function CameraBasis(cam: Camera): Matrix3 {
-
-    // this is again just a change of basis operation 
-    // first we need the orthonormal basis for the camera's coordinate system
-    // they are simply the forward ,right and up vectors of the camera
-    const forward = normalise({
-        x: cam.lookAt.x - cam.position.x,
-        y: cam.lookAt.y - cam.position.y,
-        z: cam.lookAt.z - cam.position.z
-    });
-    const right = normalise(crossProduct(forward, cam.up));
-    const up = crossProduct(right, forward);
-
-    return {
-        r1: right,
-        r2: up,
-        r3: { x: -forward.x, y: -forward.y, z: -forward.z } 
-        // we negate the forward vector because we want to transform points from world space to camera space and in camera space the camera is looking down the negative z axis
-    };
-}
-
-function perspectiveProjection(point: Point, cam: Camera): Point {
-
-    const fov = cam.fov * (Math.PI / 180); // convert to radians
-    const f = 1 / Math.tan(fov / 2);
-    const ar = cam.ar;
-    const near = cam.near;
-    const far = cam.far;
-
-    const projectionMatrix: Matrix4 = {
-        r1: { x: f / ar, y: 0, z: 0, w: 0 },
-        r2: { x: 0, y: f, z: 0, w: 0 },
-        r3: { x: 0, y: 0, z: (far + near) / (near - far), w: (2 * far * near) / (near - far) },
-        r4: { x: 0, y: 0, z: -1, w: 0 }
-    };
-
-    const pointVec4: Vec4 = { x: point.x, y: point.y, z: point.z, w: 1 };
-    // multiply the projection matrix by the point vector to get the projected point in homogeneous coordinates
-
-    const projectedVec4 = {
-        x: projectionMatrix.r1.x * pointVec4.x + projectionMatrix.r1.y * pointVec4.y + projectionMatrix.r1.z * pointVec4.z + projectionMatrix.r1.w * pointVec4.w,
-        y: projectionMatrix.r2.x * pointVec4.x + projectionMatrix.r2.y * pointVec4.y + projectionMatrix.r2.z * pointVec4.z + projectionMatrix.r2.w * pointVec4.w,
-        z: projectionMatrix.r3.x * pointVec4.x + projectionMatrix.r3.y * pointVec4.y + projectionMatrix.r3.z * pointVec4.z + projectionMatrix.r3.w * pointVec4.w,
-        w: projectionMatrix.r4.x * pointVec4.x + projectionMatrix.r4.y * pointVec4.y + projectionMatrix.r4.z * pointVec4.z + projectionMatrix.r4.w * pointVec4.w
-    };
-
-    // now we need to convert from homogeneous coordinates to 3d coordinates by dividing by w
-
-    return {
-        x: projectedVec4.x / projectedVec4.w,
-        y: projectedVec4.y / projectedVec4.w,
-        z: projectedVec4.z / projectedVec4.w
-    };
-    
-}
-
 
 
 function clearFrameBuffer(col: Color): void {
@@ -407,15 +109,15 @@ function setPixel(x: number, y: number, col: Color): void {
 
 
 
+
 function drawPoint(p: Point) {
     const point = convertPointFromNdcToScreenSpace(p);
     setPixel(point.x, point.y, { r: 255, g: 255, b: 255, a: 255 });
 }
 
-function drawLine(p1: Point, p2: Point) {
 
-    // DRAW LINE USING BRESENHAM'S LINE ALGORITHM
 
+function drawLine(p1: Point, p2: Point, col: Color, depthBias: number = 0.0001): void {
     const point1 = convertPointFromNdcToScreenSpace(p1);
     const point2 = convertPointFromNdcToScreenSpace(p2);
 
@@ -430,8 +132,21 @@ function drawLine(p1: Point, p2: Point) {
     const sy = y0 < y1 ? 1 : -1;
     let error = dx - dy;
 
+    const totalSteps = Math.max(dx, dy);
+    let step = 0;
+
     while (true) {
-        setPixel(x0, y0, { r: 0, g: 0, b: 0, a: 255 });
+        if (x0 >= 0 && x0 < canvas.width && y0 >= 0 && y0 < canvas.height) {
+            const t = totalSteps === 0 ? 0 : step / totalSteps;
+            const z = point1.z + (point2.z - point1.z) * t;
+            const index = y0 * canvas.width + x0;
+
+            // Edge is drawn only if it is on/closer than filled depth at this pixel.
+            if (z <= depthBuffer[index] + depthBias) {
+                setPixel(x0, y0, col);
+            }
+        }
+
         if (x0 === x1 && y0 === y1) {
             break;
         }
@@ -445,43 +160,10 @@ function drawLine(p1: Point, p2: Point) {
             error += dx;
             y0 += sy;
         }
+        step += 1;
     }
 }
 
-
-
-function RotateAroundArbitraryAxisMatrix(input : Vec3, axis: Vec3, angle: number): Vec3 {
-    // normalise the axis of rotation
-    const normalisedAxis = normalise(axis);
-
-    // first find new basis with the arbitrary axis as the x axis of the new basis
-    const basis = GranShmidtProcess(normalisedAxis);
-    const inverseBasis = InverseMatrix3(basis);
-    const newVecInNewBasis = multiplyMatrix3Vec3(inverseBasis, input);
-
-    // now applying the Transformation 
-    // Rotating around an arbitrary axis is the same as rotating around the X axis in the new basis
-    const rotatedVecInNewBasis = multiplyMatrix3Vec3(RotateAroundXMatrix(angle), newVecInNewBasis);
-    // now we need to convert back to the original basis
-    const rotatedVecInOriginalBasis = multiplyMatrix3Vec3(basis, rotatedVecInNewBasis);
-    return rotatedVecInOriginalBasis;
-}
-
-function  TranslateVec3(vec: Vec3, translation: Vec3): Vec3 {
-    return {
-        x: vec.x + translation.x,
-        y: vec.y + translation.y,
-        z: vec.z + translation.z,
-    };
-}
-
-function ScaleVec3(vec: Vec3, scale: Vec3): Vec3 {
-    return {
-        x: vec.x * scale.x,
-        y: vec.y * scale.y,
-        z: vec.z * scale.z,
-    };
-}
 
 
 const cubeVertexData : Point[] = [
@@ -495,17 +177,30 @@ const cubeVertexData : Point[] = [
     { x: 0.5, y: -0.5, z: -0.5 },
     { x: 0.5, y: 0.5, z: -0.5 },
     { x: -0.5, y: 0.5, z: -0.5 },
-];
 
-const cubeEdges: Array<[number, number]> = [
-    // front face
-    [0, 1], [1, 2], [2, 3], [3, 0],
-    // back face
-    [4, 5], [5, 6], [6, 7], [7, 4],
-    // connecting edges
-    [0, 4], [1, 5], [2, 6], [3, 7],
-];
+    //side faces
+    { x: -0.5, y: -0.5, z: 0.5 },
+    { x: -0.5, y: 0.5, z: 0.5 },
+    { x: -0.5, y: 0.5, z: -0.5 },
+    { x: -0.5, y: -0.5, z: -0.5 },
 
+    { x: 0.5, y: -0.5, z: 0.5 },
+    { x: 0.5, y: 0.5, z: 0.5 },
+    { x: 0.5, y: 0.5, z: -0.5 },
+    { x: 0.5, y: -0.5, z: -0.5 },
+
+    // top face
+    { x: -0.5, y: 0.5, z: 0.5 },
+    { x: 0.5, y: 0.5, z: 0.5 },
+    { x: 0.5, y: 0.5, z: -0.5 },
+    { x: -0.5, y: 0.5, z: -0.5 },
+
+    // bottom face
+    { x: -0.5, y: -0.5, z: 0.5 },
+    { x: 0.5, y: -0.5, z: 0.5 },
+    { x: 0.5, y: -0.5, z: -0.5 },
+    { x: -0.5, y: -0.5, z: -0.5 },
+];
 
 const cubeInitialTransformState = {
     position: { x: 0, y: 0, z: 0 },
@@ -520,10 +215,6 @@ const TriangleVertexData: Point[] = [
     { x: 0.5, y: -0.5, z: 0 }
 ];
 
-const TriangleEdges: Array<[number, number]> = [
-    [0, 1], [1, 2], [2, 0]
-];
-
 const quadVertexData: Point[] = [
     { x: -0.5, y: 0.5, z: 0 },
     { x: -0.5, y: -0.5, z: 0 },
@@ -531,27 +222,41 @@ const quadVertexData: Point[] = [
     { x: 0.5, y: 0.5, z: 0 }
 ];
 
-const quadEdges: Array<[number, number]> = [
-    [0, 1], [1, 2], [2, 3], [3, 0]
-];
-
 const quadMesh : Mesh = {
     name : "quadA",
     vertices: quadVertexData,
-    edgesData: quadEdges,
+    triangleIndicesData: [
+        [0, 1, 2],
+        [0, 2, 3]
+    ]
 };
 
 const cubeMESH: Mesh = {
     name : "cubeA",
     vertices: cubeVertexData,
-    edgesData: cubeEdges,
+    triangleIndicesData: [
+        [0, 1, 2],
+        [0, 2, 3],
+        [4, 5, 6],
+        [4, 6, 7],
+        [0, 4, 7],
+        [0, 7, 3],
+        [1, 5, 6],
+        [1, 6, 2],
+        [3, 7, 6],
+        [3, 6, 2],
+        [0, 4, 5],
+        [0, 5, 1]
+    ]
 };
 
 const triangleMESH: Mesh = {
     name : "triangleA",
     vertices: TriangleVertexData,
-    edgesData: TriangleEdges,
-};  
+    triangleIndicesData: [
+        [0, 1, 2]
+    ]
+};
 
 const scene : Scene = {
     cam: {
@@ -565,8 +270,6 @@ const scene : Scene = {
     },
     meshes : [cubeMESH, triangleMESH, quadMesh]
 };
-
-INITUI();
 
 
 const getRenderCamera = (): Camera => {
@@ -589,11 +292,13 @@ function updateCameraLookAt(position: Vec3): Vec3 {
         x: position.x + cameraForward.x,
         y: position.y + cameraForward.y,
         z: position.z + cameraForward.z,
+
     };
 }
 
 
 function DrawMesh(mesh: Mesh, transform: Transform, cam: Camera ) {
+
 
     // we First Scale the Points in Thier Local Space 
 
@@ -606,10 +311,13 @@ function DrawMesh(mesh: Mesh, transform: Transform, cam: Camera ) {
     const translatedPoints = rotatedPoints.map(point => TranslateVec3(point, transform.translation));
    // SCALE -> ROTATE -> TRANSLATE pipeline converts points from their local space to the world space 
 
+  
+   
         // now we need to transform the points from world space to camera space ( again change of basis )
         // first we move all the points so that the camera is the origin of the world space 
 
     const pointsShiftedSoCameraIsOrigin = translatedPoints.map(point => TranslateVec3(point, { x: -cam.position.x, y: -cam.position.y, z: -cam.position.z }));
+      
         // then we change the basis from the world space basis to the camera space basis
 
     const cameraBasis = CameraBasis(cam);
@@ -621,16 +329,29 @@ function DrawMesh(mesh: Mesh, transform: Transform, cam: Camera ) {
 
     const projectedPoints = pointsInCameraSpace.map(point => perspectiveProjection(point, cam));
 
-    
+    mesh.triangleIndicesData.forEach(([a, b, c]) => {
+    const p1 = convertPointFromNdcToScreenSpace(projectedPoints[a]);
+    const p2 = convertPointFromNdcToScreenSpace(projectedPoints[b]);
+    const p3 = convertPointFromNdcToScreenSpace(projectedPoints[c]);
 
-        mesh.edgesData.forEach(([startIndex, endIndex]) => {
-            drawLine(projectedPoints[startIndex], projectedPoints[endIndex]);
-        });
+    const col: Color = { r: 0, g: 0, b: 0, a: 255 };  
 
-        projectedPoints.forEach(point => {
-            drawPoint(point);
-        });
+    RasteriseTriangle(p1, p2, p3, col);
+});
+
+    mesh.triangleIndicesData.forEach(([a, b, c]) => {
+        const edgeColor: Color = { r: 255, g: 255, b: 255, a: 255 };
+        drawLine(projectedPoints[a], projectedPoints[b], edgeColor);
+        drawLine(projectedPoints[b], projectedPoints[c], edgeColor);
+        drawLine(projectedPoints[c], projectedPoints[a], edgeColor);
+    });
+
+    projectedPoints.forEach(point => {
+        drawPoint(point);
+    });
 }
+
+
 
 function getTransformForMesh(meshName: string): Transform {
     const transformState = getMeshTransformState(meshName);
@@ -653,12 +374,73 @@ function DrawFrameBuffer() {
     }
 }
 
+function edgeFunction(a: Point, b: Point, c: Point): number {
+    return (c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x);
+}
+
+function RasteriseTriangle(p1: Point, p2: Point, p3: Point, col: Color) {
+    // Implement triangle rasterisation using barycentric coordinates
+
+    //step 1 : compute the bounding box of the triangle 
+
+    const minX = Math.floor(Math.min(p1.x, p2.x, p3.x));
+    const maxX = Math.ceil(Math.max(p1.x, p2.x, p3.x));
+    const minY = Math.floor(Math.min(p1.y, p2.y, p3.y));
+    const maxY = Math.ceil(Math.max(p1.y, p2.y, p3.y)); 
+
+    // clamp the bounding box to the screen dimensions
+    const clampedMinX = Math.max(0, minX);
+    const clampedMaxX = Math.min(canvas.width - 1, maxX);
+    const clampedMinY = Math.max(0, minY);
+    const clampedMaxY = Math.min(canvas.height - 1, maxY);
+
+
+    //step 2 : loop through each pixel in the bounding box and check if it is inside the triangle using barycentric coordinates
+
+    // also use Z values of the points to do depth testing and update the depth buffer accordingly
+
+
+    for(let x = clampedMinX; x <= clampedMaxX; x++) {
+        for(let y = clampedMinY; y <= clampedMaxY; y++) {
+            const point: Point = { x, y, z: 0 };
+            const areaABC = edgeFunction(p1, p2, p3);
+            const areaPBC = edgeFunction(point, p2, p3);
+            const areaAPC = edgeFunction(p1, point, p3);
+            const areaABP = edgeFunction(p1, p2, point);
+
+            //depth testing
+            const w1 = areaPBC / areaABC;
+            const w2 = areaAPC / areaABC;
+            const w3 = areaABP / areaABC;
+            const z = w1 * p1.z + w2 * p2.z + w3 * p3.z;
+
+            const hasSameWinding = (areaABC >= 0 && areaPBC >= 0 && areaAPC >= 0 && areaABP >= 0) ||
+                (areaABC < 0 && areaPBC <= 0 && areaAPC <= 0 && areaABP <= 0);
+
+            if (hasSameWinding) {
+                const index = y * canvas.width + x;
+                if (z < depthBuffer[index]) {
+                    depthBuffer[index] = z;
+                    setPixel(x, y, col);
+                }
+        }
+    }
+}
+
+}
+
+
 function renderScene(scene: Scene, ctx: CanvasRenderingContext2D) {
     const renderCam = getRenderCamera();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    clearFrameBuffer({ r: 255, g: 255, b: 255, a: 255 });
+    clearFrameBuffer({ r: 25, g: 25, b: 25, a: 25 });
+    clearDepthBuffer();
     scene.meshes.forEach((mesh) => drawMeshFromState(mesh, renderCam));
 }
+
+
+initialiseUi();
+
 
 setInterval(() => {
     if (ctx) {
