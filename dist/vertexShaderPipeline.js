@@ -1,7 +1,6 @@
-import { INITUI as initialiseUi } from "./ui.js";
+import { initialiseUi } from "./ui.js";
 import { getCameraState, getMeshTransformState } from "./stateManager.js";
 import { CameraBasis, multiplyMatrix3Vec3, perspectiveProjection, RotateAroundArbitraryAxisMatrix, ScaleVec3, TranslateVec3 } from "./math.js";
-import { normalise } from "./math.js";
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
@@ -29,6 +28,7 @@ function clearFrameBuffer(col) {
 function clearDepthBuffer() {
     for (let i = 0; i < depthBuffer.length; i++) {
         depthBuffer[i] = Infinity; // set all depths to infinity (far away)
+        // remember smaller z means that object is closer to the camera should be drawn in front of objects with larger z values
     }
 }
 // Writes to the frame buffer
@@ -183,23 +183,6 @@ const scene = {
     },
     meshes: [cubeMESH, triangleMESH, quadMesh]
 };
-function CalculateNormal(p1, p2, p3) {
-    const u = {
-        x: p2.x - p1.x,
-        y: p2.y - p1.y,
-        z: p2.z - p1.z,
-    };
-    const v = {
-        x: p3.x - p1.x,
-        y: p3.y - p1.y,
-        z: p3.z - p1.z,
-    };
-    return normalise({
-        x: u.y * v.z - u.z * v.y,
-        y: u.z * v.x - u.x * v.z,
-        z: u.x * v.y - u.y * v.x,
-    });
-}
 const getRenderCamera = () => {
     const camState = getCameraState();
     const lookAt = updateCameraLookAt(camState.position);
@@ -231,14 +214,6 @@ function DrawMesh(mesh, transform, cam) {
     // now we need to transform the points from world space to camera space ( again change of basis )
     // first we move all the points so that the camera is the origin of the world space 
     const pointsShiftedSoCameraIsOrigin = translatedPoints.map(point => TranslateVec3(point, { x: -cam.position.x, y: -cam.position.y, z: -cam.position.z }));
-    // compute normals in the world space 
-    if (mesh.normalsData == null) {
-        mesh.normalsData = [];
-        mesh.triangleIndicesData.forEach(([a, b, c]) => {
-            const normal = CalculateNormal(translatedPoints[a], translatedPoints[b], translatedPoints[c]);
-            mesh.normalsData?.push(normal);
-        });
-    }
     // then we change the basis from the world space basis to the camera space basis
     const cameraBasis = CameraBasis(cam);
     const pointsInCameraSpace = pointsShiftedSoCameraIsOrigin.map(point => multiplyMatrix3Vec3(cameraBasis, point));
@@ -282,7 +257,13 @@ function DrawFrameBuffer() {
     }
 }
 function edgeFunction(a, b, c) {
-    return (c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x);
+    const vectorAB = { x: b.x - a.x, y: b.y - a.y };
+    const vectorAC = { x: c.x - a.x, y: c.y - a.y };
+    const cross = vectorAB.x * vectorAC.y - vectorAB.y * vectorAC.x;
+    return cross;
+    // > 0 means that c is on the left side of the directed edge from a to b
+    // < 0 means that c is on the right side of the directed edge from a to b
+    // = 0 means that a, b and c are collinear
 }
 function RasteriseTriangle(p1, p2, p3, col) {
     // Implement triangle rasterisation using barycentric coordinates

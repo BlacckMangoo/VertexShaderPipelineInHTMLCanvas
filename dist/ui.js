@@ -215,4 +215,4 @@ function initialiseUi() {
     syncMeshNamesFromGlobal();
     setInterval(syncMeshNamesFromGlobal, 250);
 }
-export { createPanelSection, initialiseUi as INITUI };
+export { createPanelSection, initialiseUi };

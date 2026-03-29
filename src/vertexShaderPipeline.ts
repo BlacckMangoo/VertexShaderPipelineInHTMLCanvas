@@ -1,4 +1,4 @@
-import { INITUI as initialiseUi } from "./ui.js";
+import { initialiseUi } from "./ui.js";
 import { getCameraState, getMeshTransformState } from "./stateManager.js";
 import { CameraBasis, multiplyMatrix3Vec3, perspectiveProjection, RotateAroundArbitraryAxisMatrix, ScaleVec3, TranslateVec3 } from "./math.js";
 import { Vec3} from "./math.js";
