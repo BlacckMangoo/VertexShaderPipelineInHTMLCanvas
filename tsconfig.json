@@ -1,5 +1,10 @@
 {
   "compilerOptions": {
-    "target": "ES6",
+    "target": "es2020",
+    "module": "es2020",
+    "moduleResolution": "bundler",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "strict": true
   }
 }
