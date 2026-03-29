@@ -6,7 +6,6 @@ const getRoot = (): HTMLDivElement => {
     if (root) {
         return root;
     }
-
     root = document.createElement("div");
     root.id = "ui-root";
     root.style.cssText = "position:fixed;top:12px;left:12px;z-index:1000;display:flex;flex-direction:column;gap:10px;min-width:220px;font-family:sans-serif;";
@@ -247,4 +246,4 @@ function initialiseUi(): void {
     setInterval(syncMeshNamesFromGlobal, 250);
 }
 
-export { createPanelSection, initialiseUi as INITUI };
+export { createPanelSection, initialiseUi };
