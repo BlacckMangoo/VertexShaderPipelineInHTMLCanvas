@@ -1,3 +1,6 @@
+written for education purposes with mathematical explicitness and geometrical reasoning in mind instead of saving a few multiplicatios and decides here and there , with my reasoning documented through comments 
+
+implemented all the math from scratch and is written in easy to read manner as if you would write in a mathematical derivation. 
 
 Pipeline
 
