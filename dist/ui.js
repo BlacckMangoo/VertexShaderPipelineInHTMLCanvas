@@ -172,7 +172,7 @@ function initialiseUi() {
             const current = getMeshTransformState(active);
             setMeshTransformState(active, { position: { ...current.position, y: value } });
         });
-        transformPanel.addSlider("Pos Z", 5, 10, 0.1, state.position.z, (value) => {
+        transformPanel.addSlider("Pos Z", -10, 10, 0.1, state.position.z, (value) => {
             const active = getUIState().selectedMesh;
             if (!active)
                 return;

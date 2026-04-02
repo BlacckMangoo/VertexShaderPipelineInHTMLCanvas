@@ -1,10 +1,15 @@
 {
   "devDependencies": {
-    "@types/node": "^25.5.0"
+    "@types/node": "^25.5.0",
+    "@types/pngjs": "^6.0.5"
   },
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "gen" : " node dist/assetLoader.js"
+    "gen": " node dist/assetLoader.js"
+  },
+  "dependencies": {
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0"
   }
 }

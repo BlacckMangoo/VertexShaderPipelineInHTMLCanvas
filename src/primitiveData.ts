@@ -3,12 +3,15 @@ interface Point {
     x: number;
     y: number;
     z: number;
+    u? : number;
+    v? : number;
 }
 
 interface Mesh {
     name    : string;
     vertices: Point[];
     triangleIndicesData: Array<[number, number, number]>;
+    uvData?: Array<[number, number]>;
 }
 
 
@@ -68,6 +71,12 @@ const quadMesh : Mesh = {
     triangleIndicesData: [
         [0, 1, 2],
         [0, 2, 3]
+    ],
+    uvData: [
+        [0, 1],
+        [0, 0],
+        [1, 0],
+        [1, 1]
     ]
 };
 
@@ -79,14 +88,40 @@ const cubeMESH: Mesh = {
         [0, 2, 3],
         [4, 5, 6],
         [4, 6, 7],
-        [0, 4, 7],
-        [0, 7, 3],
-        [1, 5, 6],
-        [1, 6, 2],
-        [3, 7, 6],
-        [3, 6, 2],
-        [0, 4, 5],
-        [0, 5, 1]
+        [8, 9, 10],
+        [8, 10, 11],
+        [12, 13, 14],
+        [12, 14, 15],
+        [16, 17, 18],
+        [16, 18, 19],
+        [20, 21, 22],
+        [20, 22, 23]
+    ],
+    uvData: [
+        [0, 1],
+        [1, 1],
+        [1, 0],
+        [0, 0],
+        [0, 1],
+        [1, 1],
+        [1, 0],
+        [0, 0],
+        [0, 1],
+        [1, 1],
+        [1, 0],
+        [0, 0],
+        [0, 1],
+        [1, 1],
+        [1, 0],
+        [0, 0],
+        [0, 1],
+        [1, 1],
+        [1, 0],
+        [0, 0],
+        [0, 1],
+        [1, 1],
+        [1, 0],
+        [0, 0]
     ]
 };
 
@@ -95,6 +130,11 @@ const triangleMESH: Mesh = {
     vertices: TriangleVertexData,
     triangleIndicesData: [
         [0, 1, 2]
+    ],
+    uvData: [
+        [0, 1],
+        [1, 1],
+        [1, 0]  
     ]
 };
 
