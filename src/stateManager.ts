@@ -66,7 +66,7 @@ function createDefaultTransform(): MeshTransformState {
 
 
 
-type MeshTransformState = {
+export type MeshTransformState = {
     position: {
         x: number;
         y: number;
@@ -87,12 +87,12 @@ type MeshTransformState = {
     rotationAngle: number;
 };
 
-export const meshes : Record<string, MeshTransformState> = {};
+export const mesheTransforms : Record<string, MeshTransformState> = {}; 
 
 export function ensureMeshStates(meshNames: string[]) {
     meshNames.forEach((meshName) => {
-        if (!meshes[meshName]) {
-            meshes[meshName] = createDefaultTransform();
+        if (!mesheTransforms[meshName]) {
+            mesheTransforms[meshName] = createDefaultTransform();
         }
     });
 }
@@ -100,9 +100,9 @@ export function ensureMeshStates(meshNames: string[]) {
 export function syncMeshStates(meshNames: string[]) {
     const active = new Set(meshNames);
 
-    Object.keys(meshes).forEach((meshName) => {
+    Object.keys(mesheTransforms).forEach((meshName) => {
         if (!active.has(meshName)) {
-            delete meshes[meshName];
+            delete mesheTransforms[meshName];
         }
     });
 
@@ -110,16 +110,16 @@ export function syncMeshStates(meshNames: string[]) {
 }
 
 export function setMeshTransformState(meshName: string, newState: Partial<MeshTransformState>) {
-    if (!meshes[meshName]) {
-        meshes[meshName] = createDefaultTransform();
+    if (!mesheTransforms[meshName]) {
+        mesheTransforms[meshName] = createDefaultTransform();
     }
-    Object.assign(meshes[meshName], newState);
+    Object.assign(mesheTransforms[meshName], newState);
 }
 
 export function getMeshTransformState(meshName: string): MeshTransformState {
-    if (!meshes[meshName]) {
-        meshes[meshName] = createDefaultTransform();
+    if (!mesheTransforms[meshName]) {
+        mesheTransforms[meshName] = createDefaultTransform();
     }
-    return meshes[meshName];
+    return mesheTransforms[meshName];
 }
 

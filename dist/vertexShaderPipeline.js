@@ -1,8 +1,7 @@
 import { defaultCameraState, initialiseUi } from "./ui.js";
-import { getCameraState, getMeshTransformState, syncMeshStates } from "./stateManager.js";
+import { cameraState, meshes, syncMeshStates } from "./stateManager.js";
 import { CameraBasis, multiplyMatrix3Vec3, perspectiveProjection, RotateAroundArbitraryAxisMatrix, ScaleVec3, TranslateVec3 } from "./math.js";
 import { cubeMESH } from "./primitiveData.js";
-import { allLoadedObjs } from "./loadedObj.js";
 import { textures } from "./loadedTextures.js";
 const RESOLUTION_FACTOR = 0.9;
 const canvas = document.getElementById("canvas");
@@ -17,7 +16,7 @@ const depthBuffer = new Float32Array(canvas.width * canvas.height); // for depth
 const aspectRatio = canvas.width / canvas.height;
 const scene = {
     cam: defaultCameraState,
-    meshes: [cubeMESH, ...allLoadedObjs],
+    meshes: [cubeMESH],
 };
 const logoTexture = textures.WasLogo_png;
 const checkersTexture = textures.checkers_png;
@@ -29,6 +28,12 @@ function convertPointFromNdcToScreenSpace(point) {
         y: ((-ndcy + 1) / 2) * canvas.height,
         z: point.z,
     };
+}
+function DrawFrameBuffer() {
+    if (ctx) {
+        const imageData = new ImageData(frameBuffer, canvas.width, canvas.height);
+        ctx.putImageData(imageData, 0, 0);
+    }
 }
 function clearFrameBuffer(col) {
     for (let i = 0; i < frameBuffer.length; i += 4) {
@@ -106,15 +111,14 @@ function drawLine(p1, p2, col, depthBias = 0.0001) {
     }
 }
 const getRenderCamera = () => {
-    const camState = getCameraState();
-    const lookAt = updateCameraLookAt(camState.position);
+    const lookAt = updateCameraLookAt(cameraState.position);
     return {
-        position: { ...camState.position },
+        position: { ...cameraState.position },
         lookAt,
         up: { x: 0, y: 1, z: 0 },
-        near: camState.near,
-        far: camState.far,
-        fov: camState.fov,
+        near: cameraState.near,
+        far: cameraState.far,
+        fov: cameraState.fov,
         ar: aspectRatio,
     };
 };
@@ -133,8 +137,8 @@ function DrawMesh(mesh, transform, cam) {
     // we First Scale the Points in Thier Local Space 
     const scaledPoints = mesh.vertices.map(point => ScaleVec3(point, transform.scale));
     //then we rotate the points around an arbitrary axis (in this case the vector (1, 1, 1)) that goes through the origin of the world space
-    const rotatedPoints = scaledPoints.map(point => RotateAroundArbitraryAxisMatrix(point, transform.rotationAxis, transform.rotAngle));
-    const translatedPoints = rotatedPoints.map(point => TranslateVec3(point, transform.translation));
+    const rotatedPoints = scaledPoints.map(point => RotateAroundArbitraryAxisMatrix(point, transform.rotationAxis, transform.rotationAngle));
+    const translatedPoints = rotatedPoints.map(point => TranslateVec3(point, transform.position));
     // SCALE -> ROTATE -> TRANSLATE pipeline converts points from their local space to the world space 
     // now we need to transform the points from world space to camera space ( again change of basis )
     // first we move all the points so that the camera is the origin of the world space 
@@ -173,23 +177,8 @@ function DrawMesh(mesh, transform, cam) {
     //     drawPoint(point);
     // });
 }
-function getTransformForMesh(meshName) {
-    const transformState = getMeshTransformState(meshName);
-    return {
-        translation: { ...transformState.position },
-        rotationAxis: { ...transformState.rotationAxis },
-        scale: { ...transformState.scale },
-        rotAngle: transformState.rotationAngle,
-    };
-}
 function drawMeshFromState(mesh, cam) {
-    DrawMesh(mesh, getTransformForMesh(mesh.name), cam);
-}
-function DrawFrameBuffer() {
-    if (ctx) {
-        const imageData = new ImageData(frameBuffer, canvas.width, canvas.height);
-        ctx.putImageData(imageData, 0, 0);
-    }
+    DrawMesh(mesh, meshes[mesh.name], cam);
 }
 function edgeFunction(a, b, c) {
     const vectorAB = { x: b.x - a.x, y: b.y - a.y };

@@ -1,11 +1,13 @@
 import { defaultCameraState, initialiseUi } from "./ui.js";
-import { getCameraState, getMeshTransformState, syncMeshStates } from "./stateManager.js";
+import { cameraState, mesheTransforms, syncMeshStates } from "./stateManager.js";
+import type { MeshTransformState } from "./stateManager.js";
 import { CameraBasis, multiplyMatrix3Vec3, perspectiveProjection, RotateAroundArbitraryAxisMatrix, ScaleVec3, TranslateVec3 } from "./math.js";
 import { Vec3} from "./math.js";
 import { Point,Mesh,cubeMESH,quadMesh,triangleMESH } from "./primitiveData.js";
 import { allLoadedObjs } from "./loadedObj.js";
 import { textures } from "./loadedTextures.js";
 import type { Texture } from "./texture.js";
+import type { Camera } from "./math.js";
 
 const RESOLUTION_FACTOR = 0.9 ; 
 
@@ -31,25 +33,6 @@ interface Color {
     a: number;
 }
 
-
-interface Camera {
-    position: Vec3;
-    lookAt: Vec3;
-    up: Vec3;
-    far : number;
-    near : number;
-    fov : number;
-    ar : number 
-}
-
-interface Transform {
-    rotationAxis : Vec3;
-    rotAngle : number;
-    scale: Vec3;
-    translation: Vec3;
-}
-
-
 interface Scene {
     cam : Camera;
     meshes : Mesh[];
@@ -57,7 +40,7 @@ interface Scene {
 
 const scene : Scene = {
     cam : defaultCameraState,
-    meshes : [cubeMESH,...allLoadedObjs],
+    meshes : [cubeMESH],
 };
 
 const logoTexture: Texture = textures.WasLogo_png;
@@ -74,6 +57,12 @@ function convertPointFromNdcToScreenSpace(point: Point): Point {
     };
 }
 
+function DrawFrameBuffer() {
+    if (ctx) {
+        const imageData = new ImageData(frameBuffer, canvas.width, canvas.height);
+        ctx.putImageData(imageData, 0, 0);
+    }
+}
 
 function clearFrameBuffer(col: Color): void {
     for (let i = 0; i < frameBuffer.length; i += 4) {
@@ -170,15 +159,14 @@ function drawLine(p1: Point, p2: Point, col: Color, depthBias: number = 0.0001):
 }
 
 const getRenderCamera = (): Camera => {
-    const camState = getCameraState();
-    const lookAt = updateCameraLookAt(camState.position);
+    const lookAt = updateCameraLookAt(cameraState.position);
     return {
-        position: { ...camState.position },
+        position: { ...cameraState.position },
         lookAt,
         up: { x: 0, y: 1, z: 0 },
-        near: camState.near,
-        far: camState.far,
-        fov: camState.fov,
+        near: cameraState.near,
+        far: cameraState.far,
+        fov: cameraState.fov,
         ar: aspectRatio,
     };
 };
@@ -197,7 +185,7 @@ function meshHasValidUv(mesh: Mesh): boolean {
     return Array.isArray(mesh.uvData) && mesh.uvData.length === mesh.vertices.length;
 }
 
-function DrawMesh(mesh: Mesh, transform: Transform, cam: Camera ) {
+function DrawMesh(mesh: Mesh, transform: MeshTransformState, cam: Camera ) {
 
 
     // we First Scale the Points in Thier Local Space 
@@ -207,8 +195,8 @@ function DrawMesh(mesh: Mesh, transform: Transform, cam: Camera ) {
 
     const rotatedPoints = scaledPoints.map(point => RotateAroundArbitraryAxisMatrix(point,
         transform.rotationAxis,
-        transform.rotAngle));
-    const translatedPoints = rotatedPoints.map(point => TranslateVec3(point, transform.translation));
+        transform.rotationAngle));
+    const translatedPoints = rotatedPoints.map(point => TranslateVec3(point, transform.position));
    // SCALE -> ROTATE -> TRANSLATE pipeline converts points from their local space to the world space 
 
   
@@ -263,25 +251,8 @@ function DrawMesh(mesh: Mesh, transform: Transform, cam: Camera ) {
     // });
 }
 
-function getTransformForMesh(meshName: string): Transform {
-    const transformState = getMeshTransformState(meshName);
-    return {
-        translation: { ...transformState.position },
-        rotationAxis: { ...transformState.rotationAxis },
-        scale: { ...transformState.scale },
-        rotAngle: transformState.rotationAngle,
-    };
-}
-
 function drawMeshFromState(mesh: Mesh, cam: Camera): void {
-    DrawMesh(mesh, getTransformForMesh(mesh.name), cam);
-}
-
-function DrawFrameBuffer() {
-    if (ctx) {
-        const imageData = new ImageData(frameBuffer, canvas.width, canvas.height);
-        ctx.putImageData(imageData, 0, 0);
-    }
+    DrawMesh(mesh, mesheTransforms[mesh.name], cam);
 }
 
 function edgeFunction(a: Point, b: Point, c: Point): number {
@@ -396,8 +367,10 @@ function renderScene(scene: Scene, ctx: CanvasRenderingContext2D) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     clearFrameBuffer({ r: 55, g: 55, b: 55, a: 225 });
     clearDepthBuffer();
-    scene.meshes.forEach((mesh) => drawMeshFromState(mesh, renderCam));
+    scene.meshes.forEach((mesh) => DrawMesh(mesh, mesheTransforms[mesh.name], renderCam));
 }
+
+
 initialiseUi();
 
 
