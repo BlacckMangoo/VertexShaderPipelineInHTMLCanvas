@@ -30,7 +30,7 @@ const cubeVertexData = [
     { x: -0.5, y: -0.5, z: -0.5 },
 ];
 const TriangleVertexData = [
-    { x: 0, y: 0.5, z: 0 },
+    { x: -0.5, y: 0.5, z: 0 },
     { x: -0.5, y: -0.5, z: 0 },
     { x: 0.5, y: -0.5, z: 0 }
 ];

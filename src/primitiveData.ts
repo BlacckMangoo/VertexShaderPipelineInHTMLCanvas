@@ -53,7 +53,7 @@ const cubeVertexData : Point[] = [
 
 
 const TriangleVertexData: Point[] = [
-    { x: 0, y: 0.5, z: 0 },
+    { x: -0.5, y: 0.5, z: 0 },
     { x: -0.5, y: -0.5, z: 0 },
     { x: 0.5, y: -0.5, z: 0 }
 ];

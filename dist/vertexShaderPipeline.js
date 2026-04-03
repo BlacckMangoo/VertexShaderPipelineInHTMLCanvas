@@ -4,16 +4,20 @@ import { CameraBasis, multiplyMatrix3Vec3, perspectiveProjection, RotateAroundAr
 import { cubeMESH } from "./primitiveData.js";
 import { allLoadedObjs } from "./loadedObj.js";
 import { textures } from "./loadedTextures.js";
+const RESOLUTION_FACTOR = 0.9;
 const canvas = document.getElementById("canvas");
 export const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+canvas.width = window.innerWidth * RESOLUTION_FACTOR;
+canvas.height = window.innerHeight * RESOLUTION_FACTOR;
+canvas.style.width = `${window.innerWidth}px`;
+canvas.style.height = `${window.innerHeight}px`;
+canvas.style.imageRendering = "pixelated";
 const frameBuffer = new Uint8ClampedArray(canvas.width * canvas.height * 4); // 4 for RGBA
 const depthBuffer = new Float32Array(canvas.width * canvas.height); // for depth testing
 const aspectRatio = canvas.width / canvas.height;
 const scene = {
     cam: defaultCameraState,
-    meshes: [...allLoadedObjs, cubeMESH],
+    meshes: [cubeMESH, ...allLoadedObjs],
 };
 const logoTexture = textures.WasLogo_png;
 const checkersTexture = textures.checkers_png;
@@ -157,7 +161,7 @@ function DrawMesh(mesh, transform, cam) {
             p3.u = mesh.uvData[c][0];
             p3.v = mesh.uvData[c][1];
         }
-        RasteriseTriangle(p1, p2, p3, col, useTexture ? logoTexture : undefined);
+        RasteriseTriangle(p1, p2, p3, col, useTexture ? checkersTexture : undefined);
     });
     mesh.triangleIndicesData.forEach(([a, b, c]) => {
         const edgeColor = { r: 255, g: 255, b: 255, a: 255 };
@@ -218,6 +222,7 @@ function RasteriseTriangle(p1, p2, p3, col, texture) {
         return;
     }
     const useTexture = Boolean(texture) && hasTriangleUv;
+    const activeTexture = useTexture && texture ? texture : checkersTexture;
     for (let x = clampedMinX; x <= clampedMaxX; x++) {
         for (let y = clampedMinY; y <= clampedMaxY; y++) {
             const point = { x, y, z: 0 };
@@ -242,9 +247,9 @@ function RasteriseTriangle(p1, p2, p3, col, texture) {
                 const v = w1 * p1.v + w2 * p2.v + w3 * p3.v;
                 const clampedU = Math.min(1, Math.max(0, u));
                 const clampedV = Math.min(1, Math.max(0, v));
-                const texData = useTexture ? texture.data : logoTexture.data;
-                const texWidth = useTexture ? texture.width : logoTexture.width;
-                const texHeight = useTexture ? texture.height : logoTexture.height;
+                const texData = activeTexture.data;
+                const texWidth = activeTexture.width;
+                const texHeight = activeTexture.height;
                 const texX = Math.floor(clampedU * (texWidth - 1));
                 const texY = Math.floor(clampedV * (texHeight - 1));
                 const texIndex = (texY * texWidth + texX) * 4;
@@ -266,7 +271,7 @@ function RasteriseTriangle(p1, p2, p3, col, texture) {
 function renderScene(scene, ctx) {
     const renderCam = getRenderCamera();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    clearFrameBuffer({ r: 25, g: 25, b: 25, a: 25 });
+    clearFrameBuffer({ r: 55, g: 55, b: 55, a: 225 });
     clearDepthBuffer();
     scene.meshes.forEach((mesh) => drawMeshFromState(mesh, renderCam));
 }
@@ -277,4 +282,4 @@ setInterval(() => {
         renderScene(scene, ctx);
         DrawFrameBuffer();
     }
-}, 1);
+}, 10);

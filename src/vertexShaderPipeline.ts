@@ -5,13 +5,19 @@ import { Vec3} from "./math.js";
 import { Point,Mesh,cubeMESH,quadMesh,triangleMESH } from "./primitiveData.js";
 import { allLoadedObjs } from "./loadedObj.js";
 import { textures } from "./loadedTextures.js";
+import type { Texture } from "./texture.js";
 
+const RESOLUTION_FACTOR = 0.9 ; 
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 export const ctx = canvas.getContext("2d");
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+canvas.width = window.innerWidth * RESOLUTION_FACTOR;
+canvas.height = window.innerHeight * RESOLUTION_FACTOR;
+
+canvas.style.width = `${window.innerWidth}px`;
+canvas.style.height = `${window.innerHeight}px`;
+canvas.style.imageRendering = "pixelated"; 
 
 const frameBuffer = new Uint8ClampedArray(canvas.width * canvas.height * 4); // 4 for RGBA
 const depthBuffer = new Float32Array(canvas.width * canvas.height); // for depth testing
@@ -51,11 +57,11 @@ interface Scene {
 
 const scene : Scene = {
     cam : defaultCameraState,
-    meshes : [cubeMESH],
+    meshes : [cubeMESH,...allLoadedObjs],
 };
 
-const logoTexture = textures.WasLogo_png;
-const checkersTexture = textures.checkers_png;
+const logoTexture: Texture = textures.WasLogo_png;
+const checkersTexture: Texture = textures.checkers_png;
 
 function convertPointFromNdcToScreenSpace(point: Point): Point {
     
@@ -242,7 +248,7 @@ function DrawMesh(mesh: Mesh, transform: Transform, cam: Camera ) {
         p3.v = mesh.uvData[c][1];
     }
 
-    RasteriseTriangle(p1, p2, p3, col, useTexture ? logoTexture : undefined);
+    RasteriseTriangle(p1, p2, p3, col, useTexture ? checkersTexture : undefined);
 });
 
     mesh.triangleIndicesData.forEach(([a, b, c]) => {
@@ -290,7 +296,7 @@ function edgeFunction(a: Point, b: Point, c: Point): number {
      
 }
 
-function RasteriseTriangle(p1: Point, p2: Point, p3: Point, col: Color , texture? : any ) {
+function RasteriseTriangle(p1: Point, p2: Point, p3: Point, col: Color , texture?: Texture) {
     // Implement triangle rasterisation using barycentric coordinates
 
     //step 1 : compute the bounding box of the triangle 
@@ -323,6 +329,7 @@ function RasteriseTriangle(p1: Point, p2: Point, p3: Point, col: Color , texture
     }
 
     const useTexture = Boolean(texture) && hasTriangleUv;
+    const activeTexture = useTexture && texture ? texture : checkersTexture;
 
     for(let x = clampedMinX; x <= clampedMaxX; x++) {
         for(let y = clampedMinY; y <= clampedMaxY; y++) {
@@ -350,15 +357,19 @@ function RasteriseTriangle(p1: Point, p2: Point, p3: Point, col: Color , texture
 
             // barycentric interpolation to find the u and v values at this point
             if (hasTriangleUv) {
-                const u = w1 * p1.u! + w2 * p2.u! + w3 * p3.u!;
+                const u = w1 * p1.u! + w2 * p2.u! + w3 * p3.u!; 
                 const v = w1 * p1.v! + w2 * p2.v! + w3 * p3.v!;
+
                 const clampedU = Math.min(1, Math.max(0, u));
                 const clampedV = Math.min(1, Math.max(0, v));
-                const texData = useTexture ? texture.data : logoTexture.data;
-                const texWidth = useTexture ? texture.width : logoTexture.width;
-                const texHeight = useTexture ? texture.height : logoTexture.height;
+
+                const texData = activeTexture.data;
+                const texWidth = activeTexture.width;
+                const texHeight = activeTexture.height;
+
                 const texX = Math.floor(clampedU * (texWidth - 1));
                 const texY = Math.floor(clampedV * (texHeight - 1));
+                
                 const texIndex = (texY * texWidth + texX) * 4;
                 col.r = texData[texIndex];
                 col.g = texData[texIndex + 1];
@@ -383,7 +394,7 @@ function RasteriseTriangle(p1: Point, p2: Point, p3: Point, col: Color , texture
 function renderScene(scene: Scene, ctx: CanvasRenderingContext2D) {
     const renderCam = getRenderCamera();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    clearFrameBuffer({ r: 25, g: 25, b: 25, a: 25 });
+    clearFrameBuffer({ r: 55, g: 55, b: 55, a: 225 });
     clearDepthBuffer();
     scene.meshes.forEach((mesh) => drawMeshFromState(mesh, renderCam));
 }
@@ -397,4 +408,4 @@ setInterval(() => {
         renderScene(scene, ctx);
         DrawFrameBuffer();
  }
-},1);
+},10);

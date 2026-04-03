@@ -15,18 +15,15 @@ const getRoot = () => {
     }
     root = document.createElement("div");
     root.id = "ui-root";
-    root.style.cssText = "position:fixed;top:12px;left:12px;z-index:1000;display:flex;flex-direction:column;gap:10px;min-width:220px;font-family:sans-serif;";
     document.body.appendChild(root);
     return root;
 };
 function createPanelSection(title) {
     const root = getRoot();
     const panel = document.createElement("div");
-    panel.style.cssText = "background:rgba(255,255,255,.9);padding:10px;border:1px solid #c7c7c7;border-radius:8px;";
+    panel.className = "ui-panel";
     const heading = document.createElement("h3");
     heading.textContent = title;
-    heading.style.margin = "0 0 8px 0";
-    heading.style.fontSize = "14px";
     panel.appendChild(heading);
     root.appendChild(panel);
     const addElement = (element) => {
@@ -38,10 +35,9 @@ function createPanelSection(title) {
         addElement,
         addSlider: (label, min, max, step, initialValue, onChange) => {
             const slider = document.createElement("div");
-            slider.style.cssText = "display:flex;flex-direction:column;margin-bottom:10px;";
+            slider.className = "ui-slider";
             const labelElement = document.createElement("label");
             labelElement.textContent = label;
-            labelElement.style.marginBottom = "5px";
             const input = document.createElement("input");
             input.type = "range";
             input.min = String(min);
@@ -49,16 +45,14 @@ function createPanelSection(title) {
             input.step = String(step);
             input.value = String(initialValue);
             const controlRow = document.createElement("div");
-            controlRow.style.cssText = "display:flex;align-items:center;gap:8px;";
-            input.style.flex = "1";
+            controlRow.className = "ui-control-row";
             const readout = document.createElement("span");
             readout.textContent = String(initialValue);
-            readout.style.minWidth = "52px";
+            readout.className = "ui-readout";
             const playButton = document.createElement("button");
             playButton.type = "button";
             playButton.textContent = "Play";
-            playButton.style.padding = "2px 8px";
-            playButton.style.cursor = "pointer";
+            playButton.className = "ui-play-button";
             let oscillationFrameId = null;
             let lastTimestamp = 0;
             let direction = 1;
@@ -131,15 +125,7 @@ function createMeshSelectionLabel(meshName, isSelected, onSelect) {
     const item = document.createElement("button");
     item.textContent = meshName;
     item.type = "button";
-    item.style.display = "block";
-    item.style.width = "100%";
-    item.style.marginBottom = "6px";
-    item.style.padding = "6px";
-    item.style.textAlign = "left";
-    item.style.cursor = "pointer";
-    item.style.border = "1px solid #d0d0d0";
-    item.style.borderRadius = "4px";
-    item.style.background = isSelected ? "#dbeafe" : "#fff";
+    item.className = isSelected ? "ui-mesh-button is-selected" : "ui-mesh-button";
     item.addEventListener("click", onSelect);
     return item;
 }
