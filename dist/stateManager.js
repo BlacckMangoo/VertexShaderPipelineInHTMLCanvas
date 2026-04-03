@@ -4,21 +4,14 @@
 // THE UI Writes new state to the global state object, and the renderer reads from it every frame to render the scene accordingly.
 //Globals 
 //cam
-const defaultCameraState = {
-    position: {
-        x: 0,
-        y: 0,
-        z: 5,
-    },
-    fov: 60,
-    near: 0.1,
-    far: 100,
-};
 export const cameraState = {
-    position: { ...defaultCameraState.position },
-    fov: defaultCameraState.fov,
-    near: defaultCameraState.near,
-    far: defaultCameraState.far,
+    position: { x: 0, y: 0, z: 5 },
+    lookAt: { x: 0, y: 0, z: 0 },
+    up: { x: 0, y: 1, z: 0 },
+    far: 100,
+    near: 0.1,
+    fov: 60,
+    ar: 1
 };
 export function setCameraState(newState) {
     Object.assign(cameraState, newState);
@@ -27,10 +20,15 @@ export function getCameraState() {
     return cameraState;
 }
 export function resetCameraState() {
-    cameraState.position = { ...defaultCameraState.position };
-    cameraState.fov = defaultCameraState.fov;
-    cameraState.near = defaultCameraState.near;
-    cameraState.far = defaultCameraState.far;
+    setCameraState({
+        position: { x: 0, y: 0, z: 5 },
+        lookAt: { x: 0, y: 0, z: 0 },
+        up: { x: 0, y: 1, z: 0 },
+        far: 100,
+        near: 0.1,
+        fov: 60,
+        ar: 1
+    });
 }
 //UI state 
 export const uiState = {
@@ -50,32 +48,32 @@ function createDefaultTransform() {
         rotationAngle: 0
     };
 }
-export const meshes = {};
+export const mesheTransforms = {};
 export function ensureMeshStates(meshNames) {
     meshNames.forEach((meshName) => {
-        if (!meshes[meshName]) {
-            meshes[meshName] = createDefaultTransform();
+        if (!mesheTransforms[meshName]) {
+            mesheTransforms[meshName] = createDefaultTransform();
         }
     });
 }
 export function syncMeshStates(meshNames) {
     const active = new Set(meshNames);
-    Object.keys(meshes).forEach((meshName) => {
+    Object.keys(mesheTransforms).forEach((meshName) => {
         if (!active.has(meshName)) {
-            delete meshes[meshName];
+            delete mesheTransforms[meshName];
         }
     });
     ensureMeshStates(meshNames);
 }
 export function setMeshTransformState(meshName, newState) {
-    if (!meshes[meshName]) {
-        meshes[meshName] = createDefaultTransform();
+    if (!mesheTransforms[meshName]) {
+        mesheTransforms[meshName] = createDefaultTransform();
     }
-    Object.assign(meshes[meshName], newState);
+    Object.assign(mesheTransforms[meshName], newState);
 }
 export function getMeshTransformState(meshName) {
-    if (!meshes[meshName]) {
-        meshes[meshName] = createDefaultTransform();
+    if (!mesheTransforms[meshName]) {
+        mesheTransforms[meshName] = createDefaultTransform();
     }
-    return meshes[meshName];
+    return mesheTransforms[meshName];
 }

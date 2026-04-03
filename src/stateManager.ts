@@ -8,22 +8,16 @@
 
 //cam
 
-const defaultCameraState = {
-    position: {
-        x: 0,
-        y: 0,
-        z: 5,
-    },
-    fov : 60,
-    near : 0.1,
-    far : 100,
-};
+
 
 export const cameraState = {
-    position: { ...defaultCameraState.position },
-    fov: defaultCameraState.fov,
-    near: defaultCameraState.near,
-    far: defaultCameraState.far,
+  position : { x: 0, y: 0, z: 5 },
+  lookAt : { x: 0, y: 0, z: 0 },
+  up : { x: 0, y: 1, z: 0 },
+    far : 100,
+    near : 0.1,
+    fov : 60,
+    ar : 1
 };
 
 export function setCameraState(newState: Partial<typeof cameraState>) {
@@ -35,10 +29,15 @@ export function getCameraState() {
 }
 
 export function resetCameraState() {
-    cameraState.position = { ...defaultCameraState.position };
-    cameraState.fov = defaultCameraState.fov;
-    cameraState.near = defaultCameraState.near;
-    cameraState.far = defaultCameraState.far;
+    setCameraState({
+        position : { x: 0, y: 0, z: 5 },
+        lookAt : { x: 0, y: 0, z: 0 },
+        up : { x: 0, y: 1, z: 0 },
+        far : 100,
+        near : 0.1,
+        fov : 60,
+        ar : 1
+    });
 }
 
 //UI state 

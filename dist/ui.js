@@ -1,4 +1,4 @@
-import { ensureMeshStates, getCameraState, getMeshTransformState, getUIState, meshes, setCameraState, setMeshTransformState, setUIState } from "./stateManager.js";
+import { ensureMeshStates, getCameraState, getMeshTransformState, getUIState, mesheTransforms, setCameraState, setMeshTransformState, setUIState } from "./stateManager.js";
 export const defaultCameraState = {
     position: { x: 0, y: 0, z: 7 },
     lookAt: { x: 0, y: 0, z: 0 },
@@ -254,7 +254,7 @@ function initialiseUi() {
         setCameraState({ far: value });
     });
     const syncMeshNamesFromGlobal = () => {
-        const nextMeshNames = Object.keys(meshes);
+        const nextMeshNames = Object.keys(mesheTransforms);
         ensureMeshStates(nextMeshNames);
         const changed = nextMeshNames.length !== meshNames.length ||
             nextMeshNames.some((name, index) => name !== meshNames[index]);

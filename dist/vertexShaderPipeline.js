@@ -1,5 +1,5 @@
 import { defaultCameraState, initialiseUi } from "./ui.js";
-import { cameraState, meshes, syncMeshStates } from "./stateManager.js";
+import { cameraState, mesheTransforms, syncMeshStates } from "./stateManager.js";
 import { CameraBasis, multiplyMatrix3Vec3, perspectiveProjection, RotateAroundArbitraryAxisMatrix, ScaleVec3, TranslateVec3 } from "./math.js";
 import { cubeMESH } from "./primitiveData.js";
 import { textures } from "./loadedTextures.js";
@@ -178,7 +178,7 @@ function DrawMesh(mesh, transform, cam) {
     // });
 }
 function drawMeshFromState(mesh, cam) {
-    DrawMesh(mesh, meshes[mesh.name], cam);
+    DrawMesh(mesh, mesheTransforms[mesh.name], cam);
 }
 function edgeFunction(a, b, c) {
     const vectorAB = { x: b.x - a.x, y: b.y - a.y };
@@ -262,7 +262,7 @@ function renderScene(scene, ctx) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     clearFrameBuffer({ r: 55, g: 55, b: 55, a: 225 });
     clearDepthBuffer();
-    scene.meshes.forEach((mesh) => drawMeshFromState(mesh, renderCam));
+    scene.meshes.forEach((mesh) => DrawMesh(mesh, mesheTransforms[mesh.name], renderCam));
 }
 initialiseUi();
 syncMeshStates(scene.meshes.map((mesh) => mesh.name));
