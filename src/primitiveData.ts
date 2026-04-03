@@ -66,7 +66,7 @@ const quadVertexData: Point[] = [
 ];
 
 const quadMesh : Mesh = {
-    name : "quadA",
+    name : "quad",
     vertices: quadVertexData,
     triangleIndicesData: [
         [0, 1, 2],
@@ -81,7 +81,7 @@ const quadMesh : Mesh = {
 };
 
 const cubeMESH: Mesh = {
-    name : "cubeA",
+    name : "cube",
     vertices: cubeVertexData,
     triangleIndicesData: [
         [0, 1, 2],
@@ -126,7 +126,7 @@ const cubeMESH: Mesh = {
 };
 
 const triangleMESH: Mesh = {
-    name : "triangleA",
+    name : "triangle",
     vertices: TriangleVertexData,
     triangleIndicesData: [
         [0, 1, 2]

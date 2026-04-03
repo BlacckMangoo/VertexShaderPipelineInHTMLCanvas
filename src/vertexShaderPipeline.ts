@@ -1,13 +1,15 @@
-import { defaultCameraState, initialiseUi } from "./ui.js";
-import { cameraState, mesheTransforms, syncMeshStates } from "./stateManager.js";
-import type { MeshTransformState } from "./stateManager.js";
+import { initialiseUi } from "./ui.js";
+import { getCameraState } from "./stateManager.js";
+import { mesheTransforms, syncMeshStates } from "./transform.js";
+import type { MeshTransformState } from "./transform.js";
+import { createCam, updateCameraLookAt } from "./camera.js";
 import { CameraBasis, multiplyMatrix3Vec3, perspectiveProjection, RotateAroundArbitraryAxisMatrix, ScaleVec3, TranslateVec3 } from "./math.js";
-import { Vec3} from "./math.js";
-import { Point,Mesh,cubeMESH,quadMesh,triangleMESH } from "./primitiveData.js";
-import { allLoadedObjs } from "./loadedObj.js";
+import { Point,Mesh } from "./primitiveData.js";
 import { textures } from "./loadedTextures.js";
 import type { Texture } from "./texture.js";
 import type { Camera } from "./math.js";
+import { createScene } from "./scene.js";
+import type { Scene } from "./scene.js";
 
 const RESOLUTION_FACTOR = 0.9 ; 
 
@@ -33,15 +35,7 @@ interface Color {
     a: number;
 }
 
-interface Scene {
-    cam : Camera;
-    meshes : Mesh[];
-}
-
-const scene : Scene = {
-    cam : defaultCameraState,
-    meshes : [cubeMESH],
-};
+const scene = createScene(createCam(aspectRatio));
 
 const logoTexture: Texture = textures.WasLogo_png;
 const checkersTexture: Texture = textures.checkers_png;
@@ -56,6 +50,7 @@ function convertPointFromNdcToScreenSpace(point: Point): Point {
         z: point.z,
     };
 }
+
 
 function DrawFrameBuffer() {
     if (ctx) {
@@ -103,12 +98,8 @@ function setPixel(x: number, y: number, col: Color): void {
 
 }
 
-// function drawPoint(p: Point) {
-//     const point = convertPointFromNdcToScreenSpace(p);
-//     setPixel(point.x, point.y, { r: 255, g: 255, b: 255, a: 255 });
-// }
-
 function drawLine(p1: Point, p2: Point, col: Color, depthBias: number = 0.0001): void {
+
     const point1 = convertPointFromNdcToScreenSpace(p1);
     const point2 = convertPointFromNdcToScreenSpace(p2);
 
@@ -159,27 +150,18 @@ function drawLine(p1: Point, p2: Point, col: Color, depthBias: number = 0.0001):
 }
 
 const getRenderCamera = (): Camera => {
-    const lookAt = updateCameraLookAt(cameraState.position);
+    const camState = getCameraState();
+    const lookAt = updateCameraLookAt(camState.position);
     return {
-        position: { ...cameraState.position },
+        position: { ...camState.position },
         lookAt,
         up: { x: 0, y: 1, z: 0 },
-        near: cameraState.near,
-        far: cameraState.far,
-        fov: cameraState.fov,
+        near: camState.near,
+        far: camState.far,
+        fov: camState.fov,
         ar: aspectRatio,
     };
 };
-
-function updateCameraLookAt(position: Vec3): Vec3 {
-    const cameraForward: Vec3 = { x: 0, y: 0, z: -1 };
-    return {
-        x: position.x + cameraForward.x,
-        y: position.y + cameraForward.y,
-        z: position.z + cameraForward.z,
-
-    };
-}
 
 function meshHasValidUv(mesh: Mesh): boolean {
     return Array.isArray(mesh.uvData) && mesh.uvData.length === mesh.vertices.length;
@@ -194,26 +176,25 @@ function DrawMesh(mesh: Mesh, transform: MeshTransformState, cam: Camera ) {
     //then we rotate the points around an arbitrary axis (in this case the vector (1, 1, 1)) that goes through the origin of the world space
 
     const rotatedPoints = scaledPoints.map(point => RotateAroundArbitraryAxisMatrix(point,
-        transform.rotationAxis,
-        transform.rotationAngle));
+    transform.rotationAxis,
+    transform.rotationAngle));
     const translatedPoints = rotatedPoints.map(point => TranslateVec3(point, transform.position));
-   // SCALE -> ROTATE -> TRANSLATE pipeline converts points from their local space to the world space 
+    // SCALE -> ROTATE -> TRANSLATE pipeline converts points from their local space to the world space 
 
-  
-   
-        // now we need to transform the points from world space to camera space ( again change of basis )
-        // first we move all the points so that the camera is the origin of the world space 
+
+    // now we need to transform the points from world space to camera space ( again change of basis )
+    // first we move all the points so that the camera is the origin of the world space 
 
     const pointsShiftedSoCameraIsOrigin = translatedPoints.map(point => TranslateVec3(point, { x: -cam.position.x, y: -cam.position.y, z: -cam.position.z }));
-      
-        // then we change the basis from the world space basis to the camera space basis
+
+    // then we change the basis from the world space basis to the camera space basis
 
     const cameraBasis = CameraBasis(cam);
     const pointsInCameraSpace = pointsShiftedSoCameraIsOrigin.map(point => multiplyMatrix3Vec3(cameraBasis, point));
-      // now we can observe that moving the camera in the z direction doesnt do anything , ie the points that are far away from the camera are not getting smaller with distance 
-        
-        // now as the final step , we need project the points in camera onto a 2d Screen ( in our example the screen is placed at z = 0 ) , camera is looking down the negative z axis and the projection plane is between the camera and the origin of the world space
-        // we can think of this project as if shooting a way from the position of the camera to the point in camera space and finding where it intersects the plane z = 0 ( the screen )
+    // now we can observe that moving the camera in the z direction doesnt do anything , ie the points that are far away from the camera are not getting smaller with distance 
+
+    // now as the final step , we need project the points in camera onto a 2d Screen ( in our example the screen is placed at z = 0 ) , camera is looking down the negative z axis and the projection plane is between the camera and the origin of the world space
+    // we can think of this project as if shooting a way from the position of the camera to the point in camera space and finding where it intersects the plane z = 0 ( the screen )
 
     const projectedPoints = pointsInCameraSpace.map(point => perspectiveProjection(point, cam));
 
@@ -249,10 +230,6 @@ function DrawMesh(mesh: Mesh, transform: MeshTransformState, cam: Camera ) {
     // projectedPoints.forEach(point => {
     //     drawPoint(point);
     // });
-}
-
-function drawMeshFromState(mesh: Mesh, cam: Camera): void {
-    DrawMesh(mesh, mesheTransforms[mesh.name], cam);
 }
 
 function edgeFunction(a: Point, b: Point, c: Point): number {
@@ -362,14 +339,16 @@ function RasteriseTriangle(p1: Point, p2: Point, p3: Point, col: Color , texture
 
 }
 
+scene.addMesh("teapot.obj");
+
 function renderScene(scene: Scene, ctx: CanvasRenderingContext2D) {
     const renderCam = getRenderCamera();
+    scene.setCamera(renderCam);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     clearFrameBuffer({ r: 55, g: 55, b: 55, a: 225 });
     clearDepthBuffer();
-    scene.meshes.forEach((mesh) => DrawMesh(mesh, mesheTransforms[mesh.name], renderCam));
+    scene.meshes.forEach((mesh) => DrawMesh(mesh, mesheTransforms[mesh.name], scene.cam));
 }
-
 
 initialiseUi();
 

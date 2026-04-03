@@ -1,16 +1,6 @@
 
-import { ensureMeshStates, getCameraState, getMeshTransformState, getUIState, mesheTransforms, setCameraState, setMeshTransformState, setUIState } from "./stateManager.js";
-
-
-export const defaultCameraState = {
-    position: { x: 0, y: 0, z: 7 },
-    lookAt: { x: 0, y: 0, z: 0 },
-    up: { x: 0, y: 1, z: 0 },
-    far: 1000,
-    near: 0.1,
-    fov: 60,
-    ar: 1
-};
+import { getCameraState, getMeshTransformState, getUIState, setCameraState, setMeshTransformState, setUIState } from "./stateManager.js";
+import { ensureMeshStates, mesheTransforms } from "./transform.js";
 
 const getRoot = (): HTMLDivElement => {
     let root = document.getElementById("ui-root") as HTMLDivElement | null;
@@ -189,63 +179,74 @@ function initialiseUi(): void {
             const active = getUIState().selectedMesh;
             if (!active) return;
             const current = getMeshTransformState(active);
-            setMeshTransformState(active, { position: { ...current.position, x: value } });
+            current.position.x = value;
+            setMeshTransformState(active, current);
         });
         transformPanel.addSlider("Pos Y", -10, 10, 0.1, state.position.y, (value) => {
             const active = getUIState().selectedMesh;
             if (!active) return;
             const current = getMeshTransformState(active);
-            setMeshTransformState(active, { position: { ...current.position, y: value } });
+            current.position.y = value;
+            setMeshTransformState(active, current);
         });
         transformPanel.addSlider("Pos Z", -10, 10, 0.1, state.position.z, (value) => {
             const active = getUIState().selectedMesh;
             if (!active) return;
             const current = getMeshTransformState(active);
-            setMeshTransformState(active, { position: { ...current.position, z: value } });
+            current.position.z = value;
+            setMeshTransformState(active, current);
         });
 
         transformPanel.addSlider("Rot Axis X", -1, 1, 0.01, state.rotationAxis.x, (value) => {
             const active = getUIState().selectedMesh;
             if (!active) return;
             const current = getMeshTransformState(active);
-            setMeshTransformState(active, { rotationAxis: { ...current.rotationAxis, x: value } });
+            current.rotationAxis.x = value;
+            setMeshTransformState(active, current);
         });
         transformPanel.addSlider("Rot Axis Y", -1, 1, 0.01, state.rotationAxis.y, (value) => {
             const active = getUIState().selectedMesh;
             if (!active) return;
             const current = getMeshTransformState(active);
-            setMeshTransformState(active, { rotationAxis: { ...current.rotationAxis, y: value } });
+            current.rotationAxis.y = value;
+            setMeshTransformState(active, current);
         });
         transformPanel.addSlider("Rot Axis Z", -1, 1, 0.01, state.rotationAxis.z, (value) => {
             const active = getUIState().selectedMesh;
             if (!active) return;
             const current = getMeshTransformState(active);
-            setMeshTransformState(active, { rotationAxis: { ...current.rotationAxis, z: value } });
+            current.rotationAxis.z = value;
+            setMeshTransformState(active, current);
         });
 
         transformPanel.addSlider("Scale X", 0.1, 5, 0.01, state.scale.x, (value) => {
             const active = getUIState().selectedMesh;
             if (!active) return;
             const current = getMeshTransformState(active);
-            setMeshTransformState(active, { scale: { ...current.scale, x: value } });
+            current.scale.x = value;
+            setMeshTransformState(active, current);
         });
         transformPanel.addSlider("Scale Y", 0.1, 5, 0.01, state.scale.y, (value) => {
             const active = getUIState().selectedMesh;
             if (!active) return;
             const current = getMeshTransformState(active);
-            setMeshTransformState(active, { scale: { ...current.scale, y: value } });
+            current.scale.y = value;
+            setMeshTransformState(active, current);
         });
         transformPanel.addSlider("Scale Z", 0.1, 5, 0.01, state.scale.z, (value) => {
             const active = getUIState().selectedMesh;
             if (!active) return;
             const current = getMeshTransformState(active);
-            setMeshTransformState(active, { scale: { ...current.scale, z: value } });
+            current.scale.z = value;
+            setMeshTransformState(active, current);
         });
 
         transformPanel.addSlider("Rot Angle", -3.14, 3.14, 0.01, state.rotationAngle, (value) => {
             const active = getUIState().selectedMesh;
             if (!active) return;
-            setMeshTransformState(active, { rotationAngle: value });
+            const current = getMeshTransformState(active);
+            current.rotationAngle = value;
+            setMeshTransformState(active, current);
         });
     };
 
@@ -262,7 +263,7 @@ function initialiseUi(): void {
 
         meshNames.forEach((meshName) => {
             const item = createMeshSelectionLabel(meshName, selectedMesh === meshName, () => {
-                setUIState({ selectedMesh: meshName });
+                setUIState(meshName);
                 renderMeshPanel();
                 renderTransformPanel();
             });
@@ -272,24 +273,33 @@ function initialiseUi(): void {
 
     cameraPanel.addSlider("Cam X", -20, 20, 0.1, getCameraState().position.x, (value) => {
         const cam = getCameraState();
-        setCameraState({ position: { ...cam.position, x: value } });
+        cam.position.x = value;
+        setCameraState(cam);
     });
     cameraPanel.addSlider("Cam Y", -20, 20, 0.1, getCameraState().position.y, (value) => {
         const cam = getCameraState();
-        setCameraState({ position: { ...cam.position, y: value } });
+        cam.position.y = value;
+        setCameraState(cam);
     });
     cameraPanel.addSlider("Cam Z", 5, 10, 0.1, getCameraState().position.z, (value) => {
         const cam = getCameraState();
-        setCameraState({ position: { ...cam.position, z: value } });
+        cam.position.z = value;
+        setCameraState(cam);
     });
     cameraPanel.addSlider("FOV", 20, 120, 1, getCameraState().fov, (value) => {
-        setCameraState({ fov: value });
+        const cam = getCameraState();
+        cam.fov = value;
+        setCameraState(cam);
     });
     cameraPanel.addSlider("Near", 0.05, 10, 0.05, getCameraState().near, (value) => {
-        setCameraState({ near: value });
+        const cam = getCameraState();
+        cam.near = value;
+        setCameraState(cam);
     });
     cameraPanel.addSlider("Far", 1, 2000, 1, getCameraState().far, (value) => {
-        setCameraState({ far: value });
+        const cam = getCameraState();
+        cam.far = value;
+        setCameraState(cam);
     });
 
     const syncMeshNamesFromGlobal = (): void => {
@@ -307,9 +317,9 @@ function initialiseUi(): void {
         meshNames = nextMeshNames;
         const selectedMesh = getUIState().selectedMesh;
         if (meshNames.length === 0) {
-            setUIState({ selectedMesh: null });
+            setUIState(null);
         } else if (!selectedMesh || !meshNames.includes(selectedMesh)) {
-            setUIState({ selectedMesh: meshNames[0] });
+            setUIState(meshNames[0]);
         }
 
         renderMeshPanel();
