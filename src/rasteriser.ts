@@ -4,7 +4,7 @@ import { meshTransforms, syncMeshStates } from "./transform.js";
 import type { MeshTransformState } from "./transform.js";
 import { createCam, updateCameraLookAt } from "./camera.js";
 import { CameraBasis, crossProduct, dotProduct, multiplyMatrix3Vec3, normalise, perspectiveProjectionBeforePerspectiveDevide, RotateAroundArbitraryAxisMatrix, ScaleVec3, TranslateVec3 } from "./math.js";
-import { Point,Mesh } from "./primitiveData.js";
+import { Point,Mesh, quadMesh } from "./primitiveData.js";
 import type { Texture } from "./texture.js";
 import type { Camera, ClipSpacePoint } from "./math.js";
 import { createScene } from "./scene.js";
@@ -26,6 +26,8 @@ canvas.style.imageRendering = "pixelated";
 const frameBuffer = new Uint8ClampedArray(canvas.width * canvas.height * 4); // 4 for RGBA
 const depthBuffer = new Float32Array(canvas.width * canvas.height); // for depth testing
 
+const stencilBuffer = new Uint8Array(canvas.width * canvas.height); // for stencil testing 
+// 1 in stencil means draw that pixel and 0 means dont draw 
 const aspectRatio = canvas.width / canvas.height;
 
 export interface Color {
@@ -35,7 +37,33 @@ export interface Color {
     a: number;
 }
 
- 
+let writeToDepth = true;
+let testDepth = true;
+let blendAlpha = false;
+
+export function depthWriteOn(): void {
+    writeToDepth = true;
+}
+
+export function depthWriteOff(): void {
+    writeToDepth = false;
+}
+
+export function depthTestOn(): void {
+    testDepth = true;
+}
+
+export function depthTestOff(): void {
+    testDepth = false;
+}
+
+export function alphaBlendingOn(): void {
+    blendAlpha = true;
+}
+
+export function alphaBlendingOff(): void {
+    blendAlpha = false;
+}
 
 const scene = createScene(createCam(aspectRatio));
 
@@ -120,6 +148,39 @@ function convertPointFromNdcToScreenSpace(point: Point): Point {
     };
 }
 
+function FillStencilBuffer()
+{
+    // sample fill which masks bottom half of screen 
+    for(let  i = 0 ; i < canvas.width ; i++)
+      for(let j = 0 ; j < canvas.height ; j++)
+    {
+        const index = j * canvas.width + i;
+        if(j > canvas.height / 2)
+        {
+            stencilBuffer[index] = 1;
+        }
+        else
+        {
+            stencilBuffer[index] = 0;
+        }
+    }
+}
+
+// if stencil buffer is cleared to 0 , then entire image will be drawn 
+function ClearStencilBuffer()
+{
+    for(let  i = 0 ; i < canvas.width ; i++)
+    {
+        for(let j = 0 ; j < canvas.height ; j++)
+        {
+            const index = j * canvas.width + i;
+            stencilBuffer[index] = 0;
+        }
+    }
+}
+
+
+
 function DrawFrameBuffer() {
     if (ctx) {
         const imageData = new ImageData(frameBuffer, canvas.width, canvas.height);
@@ -143,7 +204,38 @@ function clearDepthBuffer(): void {
     }
 }
 
+function clampToByte(value: number): number {
+    return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+export function alphaBlend(srcColor: Color, dstColor: Color): Color {
+    const srcA = srcColor.a / 255;
+    const dstA = dstColor.a / 255;
+    const outA = srcA + dstA * (1 - srcA);
+
+    if (outA <= 0) {
+        return { r: 0, g: 0, b: 0, a: 0 };
+    }
+
+    const outR = ((srcColor.r * srcA) + (dstColor.r * dstA * (1 - srcA))) / outA;
+    const outG = ((srcColor.g * srcA) + (dstColor.g * dstA * (1 - srcA))) / outA;
+    const outB = ((srcColor.b * srcA) + (dstColor.b * dstA * (1 - srcA))) / outA;
+
+    return {
+        r: clampToByte(outR),
+        g: clampToByte(outG),
+        b: clampToByte(outB),
+        a: clampToByte(outA * 255),
+    };
+}
+
 function setPixel(x: number, y: number, col: Color): void {
+
+    if( stencilBuffer[y * canvas.width + x] === 1) // if stencil buffer at this pixel is 1 then we draw this pixel
+    {
+        return;
+    }
+
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
         return;
     }
@@ -156,6 +248,23 @@ function setPixel(x: number, y: number, col: Color): void {
     }
 
     const index = (py * canvas.width + px) * 4;
+
+    if (blendAlpha) {
+        const dstColor: Color = {
+            r: frameBuffer[index],
+            g: frameBuffer[index + 1],
+            b: frameBuffer[index + 2],
+            a: frameBuffer[index + 3],
+        };
+
+        const outColor = alphaBlend(col, dstColor);
+        frameBuffer[index] = outColor.r;
+        frameBuffer[index + 1] = outColor.g;
+        frameBuffer[index + 2] = outColor.b;
+        frameBuffer[index + 3] = outColor.a;
+        return;
+    }
+
     frameBuffer[index] = col.r;
     frameBuffer[index + 1] = col.g;
     frameBuffer[index + 2] = col.b;
@@ -188,6 +297,7 @@ function drawLine(p1: Point, p2: Point, col: Color, depthBias: number = 0.0001):
             const z = point1.pos.z + (point2.pos.z - point1.pos.z) * t;
             const index = y0 * canvas.width + x0;
 
+            
             // Edge is drawn only if it is on/closer than filled depth at this pixel.
             if (z <= depthBuffer[index] + depthBias) {
                 setPixel(x0, y0, col);
@@ -248,11 +358,23 @@ function findInterpolatingFactorForNearPlane(p1: ClipSpacePoint, p2: ClipSpacePo
     return t;
 }
 
+function findInterpolatingFactorForFarPlane(p1: ClipSpacePoint, p2: ClipSpacePoint): number {
+    // far plane is represented as z = w in clip space
+    const t = (p1.pos.z - p1.pos.w) / ((p1.pos.z - p1.pos.w) - (p2.pos.z - p2.pos.w));
+    return t;
+}; 
+
 
 function isinsideNearPlane(point: ClipSpacePoint): boolean {
     return point.pos.z >= -point.pos.w; // near plane is represented as z = -w in clip space
     //  and we want to keep the points that are in front of the near plane ( ie z >= -w )
 }
+
+function isinsideFarPlane(point: ClipSpacePoint): boolean {
+    return point.pos.z <= point.pos.w; // far plane is represented as z = w in clip space
+    // and we want to keep the points that are behind the far plane ( ie z <= w )
+};
+
 
 function interpolateClipSpacePoint(p1: ClipSpacePoint, p2: ClipSpacePoint, t: number): ClipSpacePoint {
     const interpolatedW = p1.pos.w + t * (p2.pos.w - p1.pos.w);
@@ -330,6 +452,76 @@ function clipTriangleAgainstNearPlane(p1: ClipSpacePoint, p2: ClipSpacePoint, p3
 
     const t1 = findInterpolatingFactorForNearPlane(insidePoint1, outsidePoint);
     const t2 = findInterpolatingFactorForNearPlane(insidePoint2, outsidePoint);
+    const newPoint1 = interpolateClipSpacePoint(insidePoint1, outsidePoint, t1);
+    const newPoint2 = interpolateClipSpacePoint(insidePoint2, outsidePoint, t2);
+
+    return [
+        [insidePoint1, insidePoint2, newPoint1],
+        [newPoint1, insidePoint2, newPoint2],
+    ];
+}
+
+function clipTriangleAgainstFarPlane(p1: ClipSpacePoint, p2: ClipSpacePoint, p3: ClipSpacePoint): ClipSpacePoint[][] {
+    const p1Inside = isinsideFarPlane(p1);
+    const p2Inside = isinsideFarPlane(p2);
+    const p3Inside = isinsideFarPlane(p3);
+    const insideCount = [p1Inside, p2Inside, p3Inside].filter(Boolean).length;
+
+    if (insideCount === 0) {
+        return [];
+    }
+
+    if (insideCount === 3) {
+        return [[p1, p2, p3]];
+    }
+
+    if (insideCount === 1) {
+        let insidePoint: ClipSpacePoint;
+        let outsidePoint1: ClipSpacePoint;
+        let outsidePoint2: ClipSpacePoint;
+
+        if (p1Inside) {
+            insidePoint = p1;
+            outsidePoint1 = p2;
+            outsidePoint2 = p3;
+        } else if (p2Inside) {
+            insidePoint = p2;
+            outsidePoint1 = p1;
+            outsidePoint2 = p3;
+        } else {
+            insidePoint = p3;
+            outsidePoint1 = p1;
+            outsidePoint2 = p2;
+        }
+
+        const t1 = findInterpolatingFactorForFarPlane(insidePoint, outsidePoint1);
+        const t2 = findInterpolatingFactorForFarPlane(insidePoint, outsidePoint2);
+        const newPoint1 = interpolateClipSpacePoint(insidePoint, outsidePoint1, t1);
+        const newPoint2 = interpolateClipSpacePoint(insidePoint, outsidePoint2, t2);
+
+        return [[insidePoint, newPoint1, newPoint2]];
+    }
+
+    let outsidePoint: ClipSpacePoint;
+    let insidePoint1: ClipSpacePoint;
+    let insidePoint2: ClipSpacePoint;
+
+    if (!p1Inside) {
+        outsidePoint = p1;
+        insidePoint1 = p2;
+        insidePoint2 = p3;
+    } else if (!p2Inside) {
+        outsidePoint = p2;
+        insidePoint1 = p1;
+        insidePoint2 = p3;
+    } else {
+        outsidePoint = p3;
+        insidePoint1 = p1;
+        insidePoint2 = p2;
+    }
+
+    const t1 = findInterpolatingFactorForFarPlane(insidePoint1, outsidePoint);
+    const t2 = findInterpolatingFactorForFarPlane(insidePoint2, outsidePoint);
     const newPoint1 = interpolateClipSpacePoint(insidePoint1, outsidePoint, t1);
     const newPoint2 = interpolateClipSpacePoint(insidePoint2, outsidePoint, t2);
 
@@ -427,13 +619,17 @@ function DrawMesh(mesh: Mesh, transform: MeshTransformState, cam: Camera ) {
         r: Math.round(col.r * mesh.material.color.r / 255),
         g: Math.round(col.g * mesh.material.color.g / 255),
         b: Math.round(col.b * mesh.material.color.b / 255),
-        a: col.a,
+        a: Math.round(col.a * mesh.material.color.a / 255),
     };
 
-    const clippedTriangles = clipTriangleAgainstNearPlane(
+    const nearClippedTriangles = clipTriangleAgainstNearPlane(
         projectedPointsBeforDevide[a],
         projectedPointsBeforDevide[b],
         projectedPointsBeforDevide[c],
+    );
+
+    const clippedTriangles = nearClippedTriangles.flatMap(([np1, np2, np3]) =>
+        clipTriangleAgainstFarPlane(np1, np2, np3),
     );
 
     clippedTriangles.forEach(([cp1, cp2, cp3]) => {
@@ -476,18 +672,7 @@ function DrawMesh(mesh: Mesh, transform: MeshTransformState, cam: Camera ) {
     });
 });
 
-    // if (getRenderState().drawWireframe) {
-    //     mesh.triangleIndicesData.forEach(([a, b, c]) => {
-    //         const edgeColor: Color = { r: 255, g: 255, b: 255, a: 255 };
-    //         drawLine(projectedPoints[a], projectedPoints[b], edgeColor);
-    //         drawLine(projectedPoints[b], projectedPoints[c], edgeColor);
-    //         drawLine(projectedPoints[c], projectedPoints[a], edgeColor);
-    //     });
-    // }
-
-    // projectedPoints.forEach(point => {
-    //     drawPoint(point);
-    // });
+   
 }
 
 
@@ -561,7 +746,8 @@ function RasteriseTriangle(p1: Point, p2: Point, p3: Point, col: Color, shadeMul
 
             if (isInsideTriangle) {
                 const index = y * canvas.width + x;
-                if (z < depthBuffer[index]) {
+
+                if (z < depthBuffer[index] || !testDepth) {
                     const wInv1 = p1.wInv ?? 1;
                     const wInv2 = p2.wInv ?? 1;
                     const wInv3 = p3.wInv ?? 1;
@@ -581,13 +767,19 @@ function RasteriseTriangle(p1: Point, p2: Point, p3: Point, col: Color, shadeMul
                         : sampleTextureBilinear(texture, interpolatedU, interpolatedV);
                     const lit = Math.max(0, Math.min(1, shadeMultiplier));
 
+                    if(writeToDepth)
+                    {
                     depthBuffer[index] = z;
-                    setPixel(x, y, {
+                    }
+
+                         setPixel(x, y, {
                         r: Math.round(sampled.r * lit * (col.r / 255)),
                         g: Math.round(sampled.g * lit * (col.g / 255)),
                         b: Math.round(sampled.b * lit * (col.b / 255)),
-                        a: sampled.a,
+                        a: Math.round(sampled.a * (col.a / 255)),
                     });
+                    
+                  
                 }
             }
         }
@@ -597,14 +789,27 @@ function RasteriseTriangle(p1: Point, p2: Point, p3: Point, col: Color, shadeMul
 
 
 scene.addMesh(teapotuv);
-
+scene.addMesh(quadMesh);
 
 function renderScene(scene: Scene, ctx: CanvasRenderingContext2D) {
     const renderCam = getRenderCamera();
     scene.setCamera(renderCam);
     clearFrameBuffer({ r: 55, g: 55, b: 55, a: 225 });
     clearDepthBuffer();
-    scene.meshes.forEach((mesh) => DrawMesh(mesh, meshTransforms[mesh.name], scene.cam));
+    ClearStencilBuffer();
+
+    const opaqueMeshes = scene.meshes.filter((mesh) => mesh.material.color.a >= 255);
+    const transparentMeshes = scene.meshes.filter((mesh) => mesh.material.color.a < 255);
+
+    depthTestOn();
+    depthWriteOn();
+    alphaBlendingOff();
+    opaqueMeshes.forEach((mesh) => DrawMesh(mesh, meshTransforms[mesh.name], scene.cam));
+
+    depthTestOn();
+    depthWriteOff();
+    alphaBlendingOn();
+    transparentMeshes.forEach((mesh) => DrawMesh(mesh, meshTransforms[mesh.name], scene.cam));
 }
 
 initialiseUi();
@@ -617,6 +822,7 @@ let fpsLastSampleTime = performance.now();
 setInterval(() => {
     if (ctx) {
         renderScene(scene, ctx);
+      
         DrawFrameBuffer();
 
         fpsFrameCount += 1;

@@ -267,21 +267,21 @@ function initialiseUi(): void {
             setMeshTransformState(active, current);
         });
 
-        transformPanel.addSlider("Scale X", 0.01,0.1, 0.01, state.scale.x, (value) => {
+        transformPanel.addSlider("Scale X", 0.01,5, 0.01, state.scale.x, (value) => {
             const active = getUIState().selectedMesh;
             if (!active) return;
             const current = getMeshTransformState(active);
             current.scale.x = value;
             setMeshTransformState(active, current);
         });
-        transformPanel.addSlider("Scale Y", 0.01,0.1, 0.01, state.scale.y, (value) => {
+        transformPanel.addSlider("Scale Y", 0.01,5, 0.01, state.scale.y, (value) => {
             const active = getUIState().selectedMesh;
             if (!active) return;
             const current = getMeshTransformState(active);
             current.scale.y = value;
             setMeshTransformState(active, current);
         });
-        transformPanel.addSlider("Scale Z",  0.01,0.1, 0.01, state.scale.z, (value) => {
+        transformPanel.addSlider("Scale Z",  0.01,5, 0.01, state.scale.z, (value) => {
             const active = getUIState().selectedMesh;
             if (!active) return;
             const current = getMeshTransformState(active);
@@ -344,7 +344,7 @@ function initialiseUi(): void {
         cam.near = value;
         setCameraState(cam);
     });
-    cameraPanel.addSlider("Far", 1, 2000, 1, getCameraState().far, (value) => {
+    cameraPanel.addSlider("Far", 1, 100, 0.5, getCameraState().far, (value) => {
         const cam = getCameraState();
         cam.far = value;
         setCameraState(cam);

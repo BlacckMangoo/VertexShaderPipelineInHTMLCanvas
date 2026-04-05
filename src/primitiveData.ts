@@ -1,6 +1,6 @@
 import { Material } from "./material";
 import { Vec3 } from "./math";
-import { defaultMaterial,roughMaterial } from "./material";
+import { defaultMaterial, roughMaterial, transparentMaterial } from "./material.js";
 
 
 interface Point {
@@ -78,7 +78,7 @@ const quadMesh : Mesh = {
         [0, 1, 2],
         [0, 2, 3]
     ],
-    material: defaultMaterial
+    material: transparentMaterial
 };
 
 const cubeMESH: Mesh = {

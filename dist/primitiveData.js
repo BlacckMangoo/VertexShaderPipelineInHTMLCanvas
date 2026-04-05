@@ -1,4 +1,4 @@
-import { defaultMaterial, roughMaterial } from "./material";
+import { defaultMaterial, roughMaterial, transparentMaterial } from "./material.js";
 const cubeVertexData = [
     // front face (z = 0.5)
     { pos: { x: -0.5, y: -0.5, z: 0.5 }, u: 0, v: 1 },
@@ -49,7 +49,7 @@ const quadMesh = {
         [0, 1, 2],
         [0, 2, 3]
     ],
-    material: defaultMaterial
+    material: transparentMaterial
 };
 const cubeMESH = {
     name: "cube",

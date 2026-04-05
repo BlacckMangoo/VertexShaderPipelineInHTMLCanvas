@@ -30,3 +30,9 @@ export const roughMaterial: Material = {
     texture : roughTexture,
     color: { r: 255, g: 255, b: 255, a: 255 }
 };
+
+export const transparentMaterial: Material = {
+    name: "transparent",
+    texture : checkersTexture,
+    color: { r: 255, g: 255, b: 255, a: 128 }
+};
